@@ -1,11 +1,7 @@
-<<<<<<< HEAD
-import { useState, useMemo } from 'react';
-import { useAuth } from '../../context/AuthContext';
+﻿import { useEffect, useState } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { leaveRequests, students } from '../../data/mockData';
-import { X, MessageSquare, Inbox } from 'lucide-react';
+import { getLeaveRequests, updateLeaveStatus } from '../../services/api';
 
-// ── Badge helpers ──────────────────────────────────────
 const typeBadge = {
   OD: 'bg-blue-100 text-blue-700',
   Medical: 'bg-purple-100 text-purple-700',
@@ -18,179 +14,78 @@ const statusBadge = {
   rejected: 'bg-red-100 text-red-700',
 };
 
-const getDays = (from, to) => {
-  const diff = (new Date(to) - new Date(from)) / (1000 * 60 * 60 * 24);
-  return Math.max(1, Math.round(diff) + 1);
-};
-
-const tabs = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'rejected', label: 'Rejected' },
-];
-
-const ReviewLeaves = () => {
-  const { user } = useAuth();
-
-  const myStudentIds = students
-    .filter((s) => s.advisorId === user?.id)
-    .map((s) => s.id);
-
-  const [localLeaves, setLocalLeaves] = useState(
-    leaveRequests.filter((lr) => myStudentIds.includes(lr.studentId))
-  );
-  const [activeTab, setActiveTab] = useState('all');
-  const [modal, setModal] = useState(null);
-  const [remarks, setRemarks] = useState('');
-
-  // Filtered
-  const filtered = useMemo(() => {
-    if (activeTab === 'all') return localLeaves;
-    return localLeaves.filter((l) => l.advisorStatus === activeTab);
-  }, [localLeaves, activeTab]);
-
-  // Tab counts
-  const counts = {
-    all: localLeaves.length,
-    pending: localLeaves.filter((l) => l.advisorStatus === 'pending').length,
-    approved: localLeaves.filter((l) => l.advisorStatus === 'approved').length,
-    rejected: localLeaves.filter((l) => l.advisorStatus === 'rejected').length,
-  };
-
-  const openModal = (leave, action) => {
-    setModal({ leave, action });
-    setRemarks('');
-  };
-
-  const confirmAction = () => {
-    if (!modal) return;
-    const { leave, action } = modal;
-    setLocalLeaves((prev) =>
-      prev.map((l) => {
-        if (l.id !== leave.id) return l;
-        const newAdvisorStatus = action === 'approve' ? 'approved' : 'rejected';
-        const newFinalStatus = action === 'reject' ? 'rejected' : l.hodStatus === 'approved' ? 'approved' : 'pending';
-        return {
-          ...l,
-          advisorStatus: newAdvisorStatus,
-          advisorRemarks: remarks || (action === 'approve' ? 'Approved.' : 'Rejected.'),
-          finalStatus: newFinalStatus,
-        };
-      })
-    );
-    setModal(null);
-    setRemarks('');
-=======
-import { useState } from 'react';
-import DashboardLayout from '../../layouts/DashboardLayout';
-import { mockLeaves } from '../../data/mockData';
-
-const typeBadge = { OD: 'bg-blue-100 text-blue-700', Medical: 'bg-purple-100 text-purple-700', Personal: 'bg-orange-100 text-orange-700' };
-const statusBadge = { approved: 'bg-green-100 text-green-700', pending: 'bg-yellow-100 text-yellow-700', rejected: 'bg-red-100 text-red-700' };
+const normalizeLeave = (leave) => ({
+  ...leave,
+  type: leave.leave_type,
+  studentName: leave.student_name,
+  from: leave.start_date?.slice(0, 10),
+  to: leave.end_date?.slice(0, 10),
+  advisorStatus: leave.advisor_status,
+});
 
 export default function ReviewLeaves() {
-  const [leaves, setLeaves] = useState(mockLeaves);
+  const [leaves, setLeaves] = useState([]);
   const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const filtered = filter === 'all' ? leaves : leaves.filter(l => l.advisorStatus === filter);
+  useEffect(() => {
+    let active = true;
 
-  const updateStatus = (id, status) => {
-    setLeaves(prev => prev.map(l => l.id === id ? { ...l, advisorStatus: status } : l));
->>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942
+    const loadLeaves = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await getLeaveRequests({ scope: 'advisorAll' });
+        if (!active) return;
+        setLeaves((data.leaves || []).map(normalizeLeave));
+      } catch (err) {
+        if (active) setError(err.message || 'Failed to load leave requests.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadLeaves();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filtered = filter === 'all' ? leaves : leaves.filter((leave) => leave.advisorStatus === filter);
+
+  const updateStatus = async (id, status) => {
+    try {
+      setError('');
+      const remarks = status === 'rejected' ? window.prompt('Enter rejection remarks') : '';
+      if (status === 'rejected' && !remarks) return;
+      await updateLeaveStatus({ id, status, reviewer: 'advisor', remarks });
+      setLeaves((prev) => prev.map((leave) =>
+        leave.id === id ? { ...leave, advisorStatus: status, advisor_remarks: remarks || null } : leave
+      ));
+    } catch (err) {
+      setError(err.message || 'Failed to update leave request.');
+    }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout title="Review Requests">
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Review Requests">
-<<<<<<< HEAD
-      {/* ── Filter Tabs ────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-6">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeTab === tab.key
-                ? 'bg-indigo-600 text-white'
-                : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            {tab.label}
-            <span className={`ml-1.5 text-xs ${activeTab === tab.key ? 'text-indigo-200' : 'text-gray-400'}`}>
-              {counts[tab.key]}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* ── Table Card ─────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <Inbox className="w-12 h-12 text-gray-300 mb-3" />
-            <p className="text-gray-500 text-sm font-medium">No requests found</p>
-            <p className="text-gray-400 text-xs mt-1">Try selecting a different filter</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Student</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Type</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Dates</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Days</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Reason</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Status</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((lr) => (
-                  <tr key={lr.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3.5 text-sm font-medium text-gray-800">{lr.studentName}</td>
-                    <td className="px-4 py-3.5 text-sm">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${typeBadge[lr.type]}`}>
-                        {lr.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">
-                      {lr.fromDate} → {lr.toDate}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600">{getDays(lr.fromDate, lr.toDate)}</td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600 max-w-[180px] truncate" title={lr.reason}>
-                      {lr.reason}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[lr.advisorStatus]}`}>
-                        {lr.advisorStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      {lr.advisorStatus === 'pending' ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openModal(lr, 'approve')}
-                            className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-200 transition-colors"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => openModal(lr, 'reject')}
-                            className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-=======
       <div className="flex flex-col gap-5">
+        {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 text-sm">{error}</div>}
         <div className="flex gap-2">
-          {['all', 'pending', 'approved', 'rejected'].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${filter === f ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-              {f}
+          {['all', 'pending', 'approved', 'rejected'].map((value) => (
+            <button key={value} onClick={() => setFilter(value)} className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all ${filter === value ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+              {value}
             </button>
           ))}
         </div>
@@ -200,125 +95,43 @@ export default function ReviewLeaves() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['Student', 'Type', 'Dates', 'Days', 'Reason', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">{h}</th>
+                  {['Student', 'Type', 'Dates', 'Days', 'Reason', 'Status', 'Actions'].map((header) => (
+                    <th key={header} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">{header}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(leave => (
-                  <tr key={leave.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-4 py-3.5 text-sm font-medium text-gray-800">{leave.studentName}</td>
-                    <td className="px-4 py-3.5"><span className={`px-2 py-1 rounded-full text-xs font-medium ${typeBadge[leave.type]}`}>{leave.type}</span></td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600">{leave.from} → {leave.to}</td>
-                    <td className="px-4 py-3.5 text-sm font-semibold text-gray-700">{leave.days}d</td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600 max-w-xs truncate">{leave.reason}</td>
-                    <td className="px-4 py-3.5"><span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[leave.advisorStatus]}`}>{leave.advisorStatus}</span></td>
-                    <td className="px-4 py-3.5">
-                      {leave.advisorStatus === 'pending' && (
-                        <div className="flex gap-2">
-                          <button onClick={() => updateStatus(leave.id, 'approved')} className="px-2.5 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200">Approve</button>
-                          <button onClick={() => updateStatus(leave.id, 'rejected')} className="px-2.5 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200">Reject</button>
-                        </div>
->>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942
-                      )}
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-16">
+                      <p className="text-gray-500 font-medium text-sm">No leave requests found</p>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map((leave) => (
+                    <tr key={leave.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3.5 text-sm font-medium text-gray-800">{leave.studentName}</td>
+                      <td className="px-4 py-3.5"><span className={`px-2 py-1 rounded-full text-xs font-medium ${typeBadge[leave.type]}`}>{leave.type}</span></td>
+                      <td className="px-4 py-3.5 text-sm text-gray-600">{leave.from} to {leave.to}</td>
+                      <td className="px-4 py-3.5 text-sm font-semibold text-gray-700">{leave.days}d</td>
+                      <td className="px-4 py-3.5 text-sm text-gray-600 max-w-xs truncate">{leave.reason}</td>
+                      <td className="px-4 py-3.5"><span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[leave.advisorStatus]}`}>{leave.advisorStatus}</span></td>
+                      <td className="px-4 py-3.5">
+                        {leave.advisorStatus === 'pending' && (
+                          <div className="flex gap-2">
+                            <button onClick={() => updateStatus(leave.id, 'approved')} className="px-2.5 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200">Approve</button>
+                            <button onClick={() => updateStatus(leave.id, 'rejected')} className="px-2.5 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200">Reject</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-<<<<<<< HEAD
-        )}
-      </div>
-
-      {/* ── Action Modal ───────────────────────────────── */}
-      {modal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative">
-            <button
-              onClick={() => setModal(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-lg font-bold text-gray-900 mb-4">
-              {modal.action === 'approve' ? 'Approve' : 'Reject'} Leave Request
-            </h3>
-
-            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Student</span>
-                <span className="text-sm font-medium text-gray-800">{modal.leave.studentName}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Type</span>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${typeBadge[modal.leave.type]}`}>
-                  {modal.leave.type}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Duration</span>
-                <span className="text-sm text-gray-700">
-                  {modal.leave.fromDate} → {modal.leave.toDate} ({getDays(modal.leave.fromDate, modal.leave.toDate)} days)
-                </span>
-              </div>
-              <div className="pt-2 border-t border-gray-200">
-                <span className="text-xs text-gray-500 block mb-1">Reason</span>
-                <p className="text-sm text-gray-700">{modal.leave.reason}</p>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                <MessageSquare className="w-4 h-4 inline mr-1" />
-                Remarks (optional)
-              </label>
-              <textarea
-                rows={3}
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="Add your comments..."
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 resize-none"
-              />
-            </div>
-
-            <div className="flex items-center gap-3">
-              {modal.action === 'approve' ? (
-                <button
-                  onClick={confirmAction}
-                  className="flex-1 bg-green-600 text-white font-semibold py-2.5 rounded-xl hover:bg-green-700 transition-colors text-sm"
-                >
-                  Confirm Approve
-                </button>
-              ) : (
-                <button
-                  onClick={confirmAction}
-                  className="flex-1 bg-red-600 text-white font-semibold py-2.5 rounded-xl hover:bg-red-700 transition-colors text-sm"
-                >
-                  Confirm Reject
-                </button>
-              )}
-              <button
-                onClick={() => setModal(null)}
-                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </DashboardLayout>
-  );
-};
-
-export default ReviewLeaves;
-=======
         </div>
       </div>
     </DashboardLayout>
   );
 }
->>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942

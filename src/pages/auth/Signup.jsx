@@ -1,8 +1,8 @@
-import { useState } from 'react';
-<<<<<<< HEAD
+﻿import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { GraduationCap, User, Mail, Lock, Eye, EyeOff, AlertCircle, Briefcase } from 'lucide-react';
+import { registerUser, getAdvisors } from '../../api/authApi';
+import { GraduationCap, User, Mail, Lock, Eye, EyeOff, Briefcase } from 'lucide-react';
 
 const departments = [
   'Computer Science',
@@ -15,7 +15,19 @@ const departments = [
 
 const years = ['1st', '2nd', '3rd', '4th'];
 
-const Signup = () => {
+const roles = [
+  { key: 'student', label: 'Student' },
+  { key: 'advisor', label: 'Advisor' },
+  { key: 'hod', label: 'HOD' },
+];
+
+const dashboardRoutes = {
+  student: '/student/dashboard',
+  advisor: '/advisor/dashboard',
+  hod: '/hod/dashboard',
+};
+
+export default function Signup() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -28,27 +40,28 @@ const Signup = () => {
     department: '',
     year: '',
     employeeId: '',
+    advisorId: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [advisors, setAdvisors] = useState([]);
+  const [advisorsLoading, setAdvisorsLoading] = useState(false);
 
-  const roles = [
-    { key: 'student', label: 'Student' },
-    { key: 'advisor', label: 'Advisor' },
-    { key: 'hod', label: 'HOD' },
-  ];
-
-  const dashboardRoutes = {
-    student: '/student/dashboard',
-    advisor: '/advisor/dashboard',
-    hod: '/hod/dashboard',
-  };
+  useEffect(() => {
+    if (selectedRole === 'student') {
+      setAdvisorsLoading(true);
+      getAdvisors()
+        .then((res) => setAdvisors(res.data.advisors))
+        .catch(() => setAdvisors([]))
+        .finally(() => setAdvisorsLoading(false));
+    }
+  }, [selectedRole]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error for this field on change
     if (errors[field]) {
       setErrors((prev) => {
         const next = { ...prev };
@@ -60,7 +73,6 @@ const Signup = () => {
 
   const validate = () => {
     const newErrors = {};
-
     if (!formData.name.trim()) newErrors.name = 'Full name is required';
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
@@ -69,8 +81,8 @@ const Signup = () => {
     }
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
@@ -78,325 +90,114 @@ const Signup = () => {
       newErrors.confirmPassword = 'Passwords do not match';
     }
     if (!formData.department) newErrors.department = 'Department is required';
-
-    if (selectedRole === 'student' && !formData.year) {
-      newErrors.year = 'Year of study is required';
+    if (selectedRole === 'student' && !formData.year) newErrors.year = 'Year of study is required';
+    if (selectedRole === 'student' && !formData.advisorId) {
+      newErrors.advisorId = 'Please select your advisor';
     }
     if ((selectedRole === 'advisor' || selectedRole === 'hod') && !formData.employeeId.trim()) {
       newErrors.employeeId = 'Employee ID is required';
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSubmitError('');
     if (!validate()) return;
 
-    setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      setIsLoading(true);
+      const payload = {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        role: selectedRole,
+        department: formData.department,
+        ...(selectedRole === 'student' && { year: Number(formData.year), advisorId: Number(formData.advisorId) }),
+        ...(selectedRole !== 'student' && { employeeId: formData.employeeId.trim() }),
+      };
 
-    const userData = {
-      id: selectedRole === 'student' ? `STU-${Date.now()}` : `FAC-${Date.now()}`,
-      name: formData.name.trim(),
-      email: formData.email.trim().toLowerCase(),
-      department: formData.department,
-      ...(selectedRole === 'student' && { year: parseInt(formData.year) }),
-      ...(selectedRole !== 'student' && { employeeId: formData.employeeId }),
-    };
-
-    login(userData, selectedRole, `mock-token-${selectedRole}-${Date.now()}`);
-    navigate(dashboardRoutes[selectedRole]);
-    setIsLoading(false);
+      const res = await registerUser(payload);
+      login(res.data.user, res.data.user.role, res.data.token);
+      navigate(dashboardRoutes[selectedRole]);
+    } catch (err) {
+      setSubmitError(err.response?.data?.message || 'Signup failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex">
-      {/* ═══════════════════════════════════════════════════
-          LEFT PANEL — Gradient hero
-          ═══════════════════════════════════════════════════ */}
       <div className="hidden lg:flex w-5/12 bg-gradient-to-br from-indigo-700 to-blue-600 relative overflow-hidden items-center justify-center p-12">
-        {/* Decorative circles */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-white opacity-10 rounded-full" />
         <div className="absolute -bottom-16 -right-16 w-72 h-72 bg-white opacity-10 rounded-full" />
-
         <div className="relative z-10 text-center max-w-sm">
-          {/* Logo Icon */}
           <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-8">
             <GraduationCap className="w-10 h-10 text-white" />
           </div>
-
-          {/* Title */}
-          <h1 className="text-4xl mb-3">
-            <span className="text-white font-light">Campus</span>
-            <span className="text-white font-bold">Leave</span>
-          </h1>
-          <p className="text-white/80 text-sm leading-relaxed mb-10">
-            Streamline your leave management process with our unified platform for students, advisors, and HODs.
-          </p>
-
-          {/* Feature Cards */}
-          <div className="space-y-3">
-            <div className="bg-white/10 rounded-2xl p-4 flex items-center gap-4">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-lg flex-shrink-0">
-                🎓
-              </div>
-              <div className="text-left">
-                <p className="text-white text-sm font-semibold">Students</p>
-                <p className="text-white/70 text-xs">Apply and track leave requests easily</p>
-              </div>
-            </div>
-
-            <div className="bg-white/10 rounded-2xl p-4 flex items-center gap-4">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-lg flex-shrink-0">
-                👩‍🏫
-              </div>
-              <div className="text-left">
-                <p className="text-white text-sm font-semibold">Advisors</p>
-                <p className="text-white/70 text-xs">Review and manage student requests</p>
-              </div>
-            </div>
-
-            <div className="bg-white/10 rounded-2xl p-4 flex items-center gap-4">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-lg flex-shrink-0">
-                🏛️
-              </div>
-              <div className="text-left">
-                <p className="text-white text-sm font-semibold">HOD</p>
-                <p className="text-white/70 text-xs">Final approvals and department oversight</p>
-              </div>
-            </div>
-=======
-import { Link } from 'react-router-dom';
-import { Eye, EyeOff, GraduationCap } from 'lucide-react';
-
-export default function Signup() {
-  const [role, setRole] = useState('student');
-  const [year, setYear] = useState('1st');
-  const [showPass, setShowPass] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', department: '', employeeId: '' });
-  const [errors, setErrors] = useState({});
-
-  const validate = () => {
-    const e = {};
-    if (!form.name) e.name = 'Name is required';
-    if (!form.email) e.email = 'Email is required';
-    if (form.password.length < 8) e.password = 'Min 8 characters';
-    if (form.password !== form.confirm) e.confirm = 'Passwords do not match';
-    if (!form.department) e.department = 'Department is required';
-    return e;
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const e2 = validate();
-    if (Object.keys(e2).length > 0) { setErrors(e2); return; }
-    alert('Account created! Please login.');
-  };
-
-  const set = (field) => (e) => setForm(p => ({ ...p, [field]: e.target.value }));
-
-  return (
-    <div className="min-h-screen flex">
-      {/* Left Panel */}
-      <div className="hidden lg:flex w-5/12 flex-col justify-center items-center p-12 bg-gradient-to-br from-indigo-700 to-blue-600 relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-10 left-10 w-64 h-64 rounded-full opacity-10 bg-white"></div>
-          <div className="absolute bottom-10 right-10 w-48 h-48 rounded-full opacity-10 bg-white"></div>
-        </div>
-        <div className="relative z-10 text-center max-w-sm">
-          <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-            <GraduationCap className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-4xl font-light text-white">Campus<span className="font-bold">Leave</span></h1>
-          <p className="text-white/80 mt-3 text-base">Join thousands of students managing leaves smartly</p>
-          <div className="mt-10 flex flex-col gap-3 text-left">
-            {[
-              { icon: '🎓', title: 'Student', desc: 'Apply for leave instantly' },
-              { icon: '👩‍🏫', title: 'Advisor', desc: 'Review and approve requests' },
-              { icon: '🏛️', title: 'HOD', desc: 'Full departmental control' },
-            ].map(item => (
-              <div key={item.title} className="flex items-center gap-4 p-4 rounded-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-                <span className="text-2xl">{item.icon}</span>
-                <div>
-                  <p className="text-white font-semibold text-sm">{item.title}</p>
-                  <p className="text-white/70 text-xs">{item.desc}</p>
-                </div>
-              </div>
-            ))}
->>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942
-          </div>
+          <h1 className="text-4xl mb-3"><span className="text-white font-light">Campus</span><span className="text-white font-bold">Leave</span></h1>
+          <p className="text-white/80 text-sm leading-relaxed mb-10">Streamline your leave management process with our unified platform for students, advisors, and HODs.</p>
         </div>
       </div>
 
-<<<<<<< HEAD
-      {/* ═══════════════════════════════════════════════════
-          RIGHT PANEL — Signup form
-          ═══════════════════════════════════════════════════ */}
       <div className="w-full lg:w-7/12 bg-white flex items-start justify-center overflow-y-auto min-h-screen">
         <div className="w-full max-w-md py-12 px-8">
-          {/* Header */}
           <h2 className="text-3xl font-bold text-gray-900 mb-1">Create Account</h2>
           <p className="text-sm text-gray-500 mb-8">Join CampusLeave to get started</p>
 
-          {/* Role Selector */}
           <div className="bg-gray-100 p-1 rounded-xl flex mb-6">
-            {roles.map((r) => (
-              <button
-                key={r.key}
-                type="button"
-                onClick={() => {
-                  setSelectedRole(r.key);
-                  setErrors({});
-                }}
-                className={`flex-1 py-2.5 text-sm rounded-lg transition-all ${
-                  selectedRole === r.key
-                    ? 'bg-white shadow-sm text-indigo-600 font-semibold'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {r.label}
+            {roles.map((role) => (
+              <button key={role.key} type="button" onClick={() => { setSelectedRole(role.key); setErrors({}); setSubmitError(''); }} className={`flex-1 py-2.5 text-sm rounded-lg transition-all ${selectedRole === role.key ? 'bg-white shadow-sm text-indigo-600 font-semibold' : 'text-gray-500 hover:text-gray-700'}`}>
+                {role.label}
               </button>
             ))}
           </div>
 
-          {/* Form */}
+          {submitError && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 mb-4 text-sm">{submitError}</div>}
+
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Full Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Full Name
-              </label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => handleChange('name', e.target.value)}
-                  placeholder="Enter your full name"
-                  className={`w-full border rounded-xl pl-11 pr-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${
-                    errors.name ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                />
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+              <div className="relative"><User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="text" value={formData.name} onChange={(event) => handleChange('name', event.target.value)} placeholder="Enter your full name" className={`w-full border rounded-xl pl-11 pr-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${errors.name ? 'border-red-300' : 'border-gray-200'}`} /></div>
               {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
             </div>
 
-            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  placeholder="Enter your email"
-                  className={`w-full border rounded-xl pl-11 pr-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${
-                    errors.email ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                />
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+              <div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="email" value={formData.email} onChange={(event) => handleChange('email', event.target.value)} placeholder="Enter your email" className={`w-full border rounded-xl pl-11 pr-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${errors.email ? 'border-red-300' : 'border-gray-200'}`} /></div>
               {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
             </div>
 
-            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => handleChange('password', e.target.value)}
-                  placeholder="Create a password"
-                  className={`w-full border rounded-xl pl-11 pr-11 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${
-                    errors.password ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+              <div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type={showPassword ? 'text' : 'password'} value={formData.password} onChange={(event) => handleChange('password', event.target.value)} placeholder="Create a password" className={`w-full border rounded-xl pl-11 pr-11 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${errors.password ? 'border-red-300' : 'border-gray-200'}`} /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
             </div>
 
-            {/* Confirm Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={formData.confirmPassword}
-                  onChange={(e) => handleChange('confirmPassword', e.target.value)}
-                  placeholder="Confirm your password"
-                  className={`w-full border rounded-xl pl-11 pr-11 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${
-                    errors.confirmPassword ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
+              <div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type={showConfirmPassword ? 'text' : 'password'} value={formData.confirmPassword} onChange={(event) => handleChange('confirmPassword', event.target.value)} placeholder="Confirm your password" className={`w-full border rounded-xl pl-11 pr-11 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${errors.confirmPassword ? 'border-red-300' : 'border-gray-200'}`} /><button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">{showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
               {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
             </div>
 
-            {/* Department */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Department
-              </label>
-              <select
-                value={formData.department}
-                onChange={(e) => handleChange('department', e.target.value)}
-                className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all bg-white ${
-                  formData.department ? 'text-gray-700' : 'text-gray-300'
-                } ${errors.department ? 'border-red-300' : 'border-gray-200'}`}
-              >
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Department</label>
+              <select value={formData.department} onChange={(event) => handleChange('department', event.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all bg-white ${formData.department ? 'text-gray-700' : 'text-gray-300'} ${errors.department ? 'border-red-300' : 'border-gray-200'}`}>
                 <option value="" disabled>Select your department</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
+                {departments.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
               </select>
               {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
             </div>
 
-            {/* Year of Study — Students only */}
             {selectedRole === 'student' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Year of Study
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Year of Study</label>
                 <div className="flex gap-3">
-                  {years.map((yr, index) => (
-                    <button
-                      key={yr}
-                      type="button"
-                      onClick={() => handleChange('year', String(index + 1))}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                        formData.year === String(index + 1)
-                          ? 'bg-indigo-600 text-white border border-indigo-600'
-                          : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {yr}
+                  {years.map((year, index) => (
+                    <button key={year} type="button" onClick={() => handleChange('year', String(index + 1))} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${formData.year === String(index + 1) ? 'bg-indigo-600 text-white border border-indigo-600' : 'border border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                      {year}
                     </button>
                   ))}
                 </div>
@@ -404,176 +205,45 @@ export default function Signup() {
               </div>
             )}
 
-            {/* Employee ID — Advisor / HOD only */}
+            {selectedRole === 'student' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Select Advisor</label>
+                {advisorsLoading ? (
+                  <p className="text-sm text-gray-400">Loading advisors...</p>
+                ) : (
+                  <select
+                    value={formData.advisorId}
+                    onChange={(e) => handleChange('advisorId', e.target.value)}
+                    className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all bg-white ${formData.advisorId ? 'text-gray-700' : 'text-gray-300'} ${errors.advisorId ? 'border-red-300' : 'border-gray-200'}`}
+                  >
+                    <option value="" disabled>Select your advisor</option>
+                    {advisors.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} — {a.department}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {errors.advisorId && <p className="text-red-500 text-xs mt-1">{errors.advisorId}</p>}
+              </div>
+            )}
+
             {(selectedRole === 'advisor' || selectedRole === 'hod') && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Employee ID
-                </label>
-                <div className="relative">
-                  <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={formData.employeeId}
-                    onChange={(e) => handleChange('employeeId', e.target.value)}
-                    placeholder="Enter your employee ID"
-                    className={`w-full border rounded-xl pl-11 pr-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${
-                      errors.employeeId ? 'border-red-300' : 'border-gray-200'
-                    }`}
-                  />
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Employee ID</label>
+                <div className="relative"><Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="text" value={formData.employeeId} onChange={(event) => handleChange('employeeId', event.target.value)} placeholder="Enter your employee ID" className={`w-full border rounded-xl pl-11 pr-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300 ${errors.employeeId ? 'border-red-300' : 'border-gray-200'}`} /></div>
                 {errors.employeeId && <p className="text-red-500 text-xs mt-1">{errors.employeeId}</p>}
               </div>
             )}
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-indigo-600 to-blue-500 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Creating account...
-                </>
-              ) : (
-                'Create Account'
-              )}
+            <button type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-indigo-600 to-blue-500 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2">
+              {isLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Creating account...</> : 'Create Account'}
             </button>
           </form>
 
-          {/* Login link */}
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Already have an account?{' '}
-            <Link to="/login" className="text-indigo-600 font-medium hover:underline">
-              Log in
-            </Link>
-          </p>
-=======
-      {/* Right Panel */}
-      <div className="flex-1 overflow-y-auto bg-white">
-        <div className="min-h-full flex items-center justify-center p-8">
-          <div className="w-full max-w-md py-8">
-            <div className="mb-6">
-              <h2 className="text-3xl font-bold text-gray-800">Create Account</h2>
-              <p className="text-gray-500 mt-2 text-sm">Sign up to get started</p>
-            </div>
-
-            {/* Role Toggle */}
-            <div className="mb-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Register as</p>
-              <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-                {['student', 'advisor', 'hod'].map(r => (
-                  <button key={r} onClick={() => setRole(r)} type="button"
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all ${role === r ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-gray-500 hover:text-gray-700'}`}>
-                    {r === 'hod' ? 'HOD' : r.charAt(0).toUpperCase() + r.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {/* Full Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
-                <input type="text" value={form.name} onChange={set('name')} placeholder="Jane Doe"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all" />
-                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
-                <input type="email" value={form.email} onChange={set('email')} placeholder="you@campus.edu"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all" />
-                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                <div className="relative">
-                  <input type={showPass ? 'text' : 'password'} value={form.password} onChange={set('password')} placeholder="Min 8 characters"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all" />
-                  <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3.5 top-3.5 text-gray-400 hover:text-gray-600">
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
-                <div className="relative">
-                  <input type={showConfirm ? 'text' : 'password'} value={form.confirm} onChange={set('confirm')} placeholder="Re-enter password"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all" />
-                  <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3.5 top-3.5 text-gray-400 hover:text-gray-600">
-                    {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {errors.confirm && <p className="text-red-500 text-xs mt-1">{errors.confirm}</p>}
-              </div>
-
-              {/* Department */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Department</label>
-                <select value={form.department} onChange={set('department')}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all bg-white text-gray-700">
-                  <option value="">Select department</option>
-                  <option>Computer Science</option>
-                  <option>Electronics</option>
-                  <option>Mechanical</option>
-                  <option>Civil</option>
-                  <option>Information Technology</option>
-                </select>
-                {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
-              </div>
-
-              {/* Student: Year */}
-              {role === 'student' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Year of Study</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {['1st', '2nd', '3rd', '4th'].map(y => (
-                      <button key={y} type="button" onClick={() => setYear(y)}
-                        className={`py-2.5 text-sm font-medium rounded-xl border transition-all ${year === y ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'}`}>
-                        {y}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Advisor/HOD: Employee ID */}
-              {(role === 'advisor' || role === 'hod') && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Employee ID</label>
-                  <input type="text" value={form.employeeId} onChange={set('employeeId')} placeholder="EMP-001"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all" />
-                </div>
-              )}
-
-              <button type="submit" className="w-full py-3 rounded-xl text-white font-semibold text-sm bg-gradient-to-r from-indigo-600 to-blue-500 hover:opacity-90 transition-opacity mt-2">
-                Create Account
-              </button>
-            </form>
-
-            <p className="text-center text-sm text-gray-500 mt-5">
-              Already have an account?{' '}
-              <Link to="/login" className="text-indigo-600 font-medium hover:underline">Log in</Link>
-            </p>
-          </div>
->>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942
+          <p className="text-center text-sm text-gray-500 mt-6">Already have an account? <Link to="/login" className="text-indigo-600 font-medium hover:underline">Log in</Link></p>
         </div>
       </div>
     </div>
   );
-<<<<<<< HEAD
-};
-
-export default Signup;
-=======
 }
->>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942

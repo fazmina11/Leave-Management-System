@@ -1,10 +1,8 @@
-<<<<<<< HEAD
-import { useState, useMemo } from 'react';
+﻿import { useEffect, useState } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { leaveRequests } from '../../data/mockData';
-import { Search, Filter, Inbox } from 'lucide-react';
+import { getLeaveRequests } from '../../services/api';
+import { Search } from 'lucide-react';
 
-// ── Badge helpers ──────────────────────────────────────
 const typeBadge = {
   OD: 'bg-blue-100 text-blue-700',
   Medical: 'bg-purple-100 text-purple-700',
@@ -17,155 +15,78 @@ const statusBadge = {
   rejected: 'bg-red-100 text-red-700',
 };
 
-const getDays = (from, to) => {
-  const diff = (new Date(to) - new Date(from)) / (1000 * 60 * 60 * 24);
-  return Math.max(1, Math.round(diff) + 1);
-};
-
-const AllRequests = () => {
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-
-  const filtered = useMemo(() => {
-    return leaveRequests.filter((lr) => {
-      if (typeFilter !== 'all' && lr.type !== typeFilter) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        return (
-          lr.studentName.toLowerCase().includes(q) ||
-          lr.reason.toLowerCase().includes(q) ||
-          lr.department.toLowerCase().includes(q) ||
-          lr.type.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [search, typeFilter]);
-
-  return (
-    <DashboardLayout title="All Requests">
-      {/* ── Search & Filter Bar ────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div className="flex items-center gap-4">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by student, reason, department..."
-              className="w-full border border-gray-200 rounded-xl pl-11 pr-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-gray-300"
-            />
-          </div>
-
-          {/* Type dropdown */}
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="border border-gray-200 rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all bg-white appearance-none"
-            >
-              <option value="all">All Types</option>
-              <option value="OD">OD</option>
-              <option value="Medical">Medical</option>
-              <option value="Personal">Personal</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Table Card ─────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <Inbox className="w-12 h-12 text-gray-300 mb-3" />
-            <p className="text-gray-500 text-sm font-medium">No matching requests found</p>
-            <p className="text-gray-400 text-xs mt-1">Try adjusting your search or filters</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Student</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Type</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Dates</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Days</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Reason</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Advisor</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">HOD</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Final</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((lr) => (
-                  <tr key={lr.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3.5">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{lr.studentName}</p>
-                        <p className="text-xs text-gray-400">{lr.department}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-sm">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${typeBadge[lr.type]}`}>
-                        {lr.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">
-                      {lr.fromDate} → {lr.toDate}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600">{getDays(lr.fromDate, lr.toDate)}</td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600 max-w-[200px] truncate" title={lr.reason}>
-                      {lr.reason}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[lr.advisorStatus]}`}>
-                        {lr.advisorStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-sm">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[lr.hodStatus]}`}>
-                        {lr.hodStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-sm">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[lr.finalStatus]}`}>
-                        {lr.finalStatus}
-                      </span>
-                    </td>
-=======
-import { useState } from 'react';
-import DashboardLayout from '../../layouts/DashboardLayout';
-import { mockLeaves } from '../../data/mockData';
-import { Search } from 'lucide-react';
-
-const typeBadge = { OD: 'bg-blue-100 text-blue-700', Medical: 'bg-purple-100 text-purple-700', Personal: 'bg-orange-100 text-orange-700' };
-const statusBadge = { approved: 'bg-green-100 text-green-700', pending: 'bg-yellow-100 text-yellow-700', rejected: 'bg-red-100 text-red-700' };
+const normalizeLeave = (leave) => ({
+  ...leave,
+  type: leave.leave_type,
+  studentName: leave.student_name,
+  from: leave.start_date?.slice(0, 10),
+  to: leave.end_date?.slice(0, 10),
+  advisorStatus: leave.advisor_status,
+  hodStatus: leave.hod_status,
+  finalStatus: leave.final_status,
+});
 
 export default function AllRequests() {
+  const [leaves, setLeaves] = useState([]);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const filtered = mockLeaves.filter(l => {
-    const matchSearch = l.studentName.toLowerCase().includes(search.toLowerCase()) || l.reason.toLowerCase().includes(search.toLowerCase());
-    const matchType = typeFilter === 'All' || l.type === typeFilter;
-    return matchSearch && matchType;
+  useEffect(() => {
+    let active = true;
+
+    const loadRequests = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await getLeaveRequests({ scope: 'hodAll' });
+        if (!active) return;
+        setLeaves((data.leaves || []).map(normalizeLeave));
+      } catch (err) {
+        if (active) setError(err.message || 'Failed to load leave requests.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadRequests();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filtered = leaves.filter((leave) => {
+    const query = search.toLowerCase();
+    const matchesSearch = leave.studentName?.toLowerCase().includes(query) || leave.reason?.toLowerCase().includes(query);
+    const matchesType = typeFilter === 'All' || leave.type === typeFilter;
+    return matchesSearch && matchesType;
   });
+
+  if (loading) {
+    return (
+      <DashboardLayout title="All Requests">
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="All Requests">
       <div className="flex flex-col gap-5">
+        {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 text-sm">{error}</div>}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-wrap gap-3">
           <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search by student or reason..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-400" />
+            <input type="text" placeholder="Search by student or reason..." value={search} onChange={(event) => setSearch(event.target.value)} className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-400" />
           </div>
-          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-gray-700">
-            <option>All</option><option>OD</option><option>Medical</option><option>Personal</option>
+          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-gray-700">
+            <option>All</option>
+            <option>OD</option>
+            <option>Medical</option>
+            <option>Personal</option>
           </select>
         </div>
 
@@ -174,40 +95,37 @@ export default function AllRequests() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['Student', 'Type', 'Dates', 'Days', 'Reason', 'Advisor', 'HOD', 'Final'].map(h => (
-                    <th key={h} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">{h}</th>
+                  {['Student', 'Type', 'Dates', 'Days', 'Reason', 'Advisor', 'HOD', 'Final'].map((header) => (
+                    <th key={header} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">{header}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(leave => (
-                  <tr key={leave.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-4 py-3.5 text-sm font-medium text-gray-800">{leave.studentName}</td>
-                    <td className="px-4 py-3.5"><span className={`px-2 py-1 rounded-full text-xs font-medium ${typeBadge[leave.type]}`}>{leave.type}</span></td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600">{leave.from} → {leave.to}</td>
-                    <td className="px-4 py-3.5 text-sm font-semibold text-gray-700">{leave.days}d</td>
-                    <td className="px-4 py-3.5 text-sm text-gray-600 max-w-xs truncate">{leave.reason}</td>
-                    <td className="px-4 py-3.5"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[leave.advisorStatus]}`}>{leave.advisorStatus}</span></td>
-                    <td className="px-4 py-3.5"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[leave.hodStatus]}`}>{leave.hodStatus}</span></td>
-                    <td className="px-4 py-3.5"><span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[leave.finalStatus]}`}>{leave.finalStatus}</span></td>
->>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-16">
+                      <p className="text-gray-500 font-medium text-sm">No leave requests found</p>
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map((leave) => (
+                    <tr key={leave.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3.5 text-sm font-medium text-gray-800">{leave.studentName}</td>
+                      <td className="px-4 py-3.5"><span className={`px-2 py-1 rounded-full text-xs font-medium ${typeBadge[leave.type]}`}>{leave.type}</span></td>
+                      <td className="px-4 py-3.5 text-sm text-gray-600">{leave.from} to {leave.to}</td>
+                      <td className="px-4 py-3.5 text-sm font-semibold text-gray-700">{leave.days}d</td>
+                      <td className="px-4 py-3.5 text-sm text-gray-600 max-w-xs truncate">{leave.reason}</td>
+                      <td className="px-4 py-3.5"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[leave.advisorStatus]}`}>{leave.advisorStatus}</span></td>
+                      <td className="px-4 py-3.5"><span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[leave.hodStatus]}`}>{leave.hodStatus}</span></td>
+                      <td className="px-4 py-3.5"><span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${statusBadge[leave.finalStatus]}`}>{leave.finalStatus}</span></td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-<<<<<<< HEAD
-        )}
-      </div>
-    </DashboardLayout>
-  );
-};
-
-export default AllRequests;
-=======
         </div>
       </div>
     </DashboardLayout>
   );
 }
->>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942
