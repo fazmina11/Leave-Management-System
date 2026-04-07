@@ -1,6 +1,6 @@
 import api from '../api/axios';
 
-export const BASE_URL = 'http://localhost:5000/api';
+export const BASE_URL = `${import.meta.env.VITE_API_URL || 'https://leavebackend-production.up.railway.app'}/api`;
 
 const normalizeError = (error, fallbackMessage) => {
   const message =
