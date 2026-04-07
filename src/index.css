@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+<<<<<<< HEAD
 
+=======
+>>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -13,4 +16,8 @@ body {
   background-color: #f5f7fb;
   margin: 0;
   padding: 0;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> b1b8775c99732737e7c05f60295f603e4cfff942
